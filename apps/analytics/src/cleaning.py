@@ -160,10 +160,19 @@ def impute_column(
     before = _column_stats(series)
 
     if strategy == "knn":
-        numeric = out[NUMERIC_COLS]
-        out[NUMERIC_COLS] = KNNImputer(n_neighbors=5).fit_transform(numeric)
+        # KNNImputer descarta las columnas 100% nulas: solo se usan las que
+        # tienen al menos un dato, o la forma de la salida no coincide.
+        usables = [c for c in NUMERIC_COLS if out[c].notna().any()]
+        if column in usables:
+            out[usables] = KNNImputer(n_neighbors=5).fit_transform(out[usables])
+        else:
+            imputed = 0  # columna 100% nula: no hay vecinos de los que aprender
     elif strategy == "mode":
-        out[column] = series.fillna(series.mode(dropna=True).iloc[0])
+        moda = series.mode(dropna=True)
+        if moda.empty:
+            imputed = 0  # columna 100% nula: no existe moda que aplicar
+        else:
+            out[column] = series.fillna(moda.iloc[0])
     elif strategy == "median":
         out[column] = series.fillna(series.median())
     else:  # mean
